@@ -1,12 +1,8 @@
 import jwt from "jsonwebtoken";
 import { loginEsquema } from "../utils/esquemas.js";
 import { assincrono } from "../utils/assincrono.js";
+import { registrarFalhaLogin, limparTentativasLogin } from "../middlewares/lockoutLogin.js";
 
-/**
- * Login tradicional (e-mail + senha definidos em variáveis de ambiente).
- * Não há envio de link/código por e-mail — as credenciais são validadas
- * diretamente no backend e, se corretas, um JWT é retornado.
- */
 export const entrar = assincrono(async (req, res) => {
   const { email, senha } = loginEsquema.parse(req.body);
 
@@ -14,8 +10,14 @@ export const entrar = assincrono(async (req, res) => {
   const senhaValida = senha === process.env.ADMIN_PASSWORD;
 
   if (!emailValido || !senhaValida) {
-    return res.status(401).json({ erro: "E-mail ou senha inválidos." });
+    registrarFalhaLogin(req);
+
+    return res.status(401).json({
+      erro: "E-mail ou senha inválidos.",
+    });
   }
+
+  limparTentativasLogin(req);
 
  const token = jwt.sign(
     {
@@ -33,7 +35,6 @@ export const entrar = assincrono(async (req, res) => {
   res.json({ token, email: process.env.ADMIN_EMAIL });
 });
 
-/** Confirma que o token enviado ainda é válido (usado pelo layout do painel). */
 export const verificar = assincrono(async (req, res) => {
   res.json({ admin: true, email: req.admin.email });
 });
